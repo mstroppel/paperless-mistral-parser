@@ -1,0 +1,86 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "paperless-mistral-parser"
+version = "0.1.0"
+description = "Mistral OCR parser plugin for scan-based Paperless-ngx documents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Marco Stroppel" }]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Office/Business",
+]
+dependencies = [
+  "fpdf2>=2.8,<3",
+  "httpx>=0.27,<1",
+  "pdf2image>=1.17,<2",
+  "pikepdf>=9,<11",
+  "Pillow>=10,<13",
+]
+
+[project.urls]
+Homepage = "https://github.com/mstroppel/paperless-mistral-parser"
+Issues = "https://github.com/mstroppel/paperless-mistral-parser/issues"
+
+[project.entry-points."paperless_ngx.parsers"]
+mistral_ocr = "paperless_mistral_parser.parser:MistralOcrParser"
+
+[dependency-groups]
+dev = [
+  "build>=1.3,<2",
+  "mypy>=1.17,<2",
+  "pypdf>=6,<7",
+  "pytest>=8.4,<10",
+  "pytest-cov>=6,<8",
+  "respx>=0.22,<1",
+  "ruff>=0.12,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/paperless_mistral_parser"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/paperless_mistral_parser/py.typed" = "paperless_mistral_parser/py.typed"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov=paperless_mistral_parser --cov-report=term-missing"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["paperless_mistral_parser"]
+
+[[tool.mypy.overrides]]
+module = [
+  "django.*",
+  "documents.*",
+  "fpdf.*",
+  "paperless.*",
+  "pdf2image.*",
+  "PIL.*",
+]
+ignore_missing_imports = true

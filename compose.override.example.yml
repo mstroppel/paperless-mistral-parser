@@ -1,0 +1,18 @@
+services:
+  paperless:
+    build:
+      context: .
+      args:
+        PAPERLESS_VERSION: 3.1.3
+    image: paperless-mistral-parser:3.1.3
+    environment:
+      PAPERLESS_OCR_MODE: auto
+      PAPERLESS_ARCHIVE_FILE_GENERATION: auto
+      PAPERLESS_REMOTE_OCR_MODE: always
+      MISTRAL_API_KEY_FILE: /run/secrets/mistral_api_key
+    secrets:
+      - mistral_api_key
+
+secrets:
+  mistral_api_key:
+    file: ./secrets/mistral_api_key

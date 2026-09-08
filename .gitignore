@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local plugin secrets
+secrets/
+
+# Local source material
+mistral-ocr-f-r-textlose-dokumente-konzipieren.json
+*:Zone.Identifier
+*Zone.Identifier
