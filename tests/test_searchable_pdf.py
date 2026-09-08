@@ -39,11 +39,39 @@ def test_rejects_page_count_mismatch(image_path: Path, tmp_path: Path) -> None:
 
 def test_falls_back_to_page_markdown(image_path: Path, tmp_path: Path) -> None:
     output = tmp_path / "archive.pdf"
-    pages = [{"markdown": "Fallback text", "dimensions": {"width": None, "height": 0}}]
+    pages = [
+        {
+            "markdown": "Fallback text",
+            "dimensions": {"width": None, "height": 0},
+            "blocks": [None, {"content": "missing coordinates"}],
+        },
+    ]
 
     build_searchable_pdf(image_path, "image/png", pages, output, dpi=100)
 
     assert "Fallback text" in PdfReader(output).pages[0].extract_text()
+
+
+def test_builds_archive_from_pdf_source(image_path: Path, tmp_path: Path) -> None:
+    source_pdf = tmp_path / "source.pdf"
+    build_searchable_pdf(
+        image_path,
+        "image/png",
+        [{"markdown": "first pass"}],
+        source_pdf,
+        dpi=100,
+    )
+    output = tmp_path / "second.pdf"
+
+    build_searchable_pdf(
+        source_pdf,
+        "application/pdf",
+        [{"markdown": "PDF scan text"}],
+        output,
+        dpi=100,
+    )
+
+    assert "PDF scan text" in PdfReader(output).pages[0].extract_text()
 
 
 def test_find_font_rejects_missing_candidates(monkeypatch: pytest.MonkeyPatch) -> None:

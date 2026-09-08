@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,8 @@ def find_font(configured: Path | None = None) -> Path:
         configured,
         Path("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf"),
         Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"),
+        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
     ]
     for candidate in candidates:
         if candidate and candidate.is_file():
@@ -25,19 +27,54 @@ def find_font(configured: Path | None = None) -> Path:
     raise PdfBuildError("No Unicode font found; set MISTRAL_OCR_FONT_PATH")
 
 
-def _page_images(source: Path, mime_type: str, dpi: int) -> list[tuple[Image.Image, float]]:
+def _source_page_count(source: Path, mime_type: str) -> int:
+    if mime_type == "application/pdf":
+        from pdf2image import pdfinfo_from_path
+
+        return int(pdfinfo_from_path(str(source))["Pages"])
+    with Image.open(source) as image:
+        return int(getattr(image, "n_frames", 1))
+
+
+def _page_images(
+    source: Path,
+    mime_type: str,
+    dpi: int,
+    workdir: Path,
+) -> Generator[tuple[Image.Image, float]]:
     if mime_type == "application/pdf":
         from pdf2image import convert_from_path
 
-        return [(image.convert("RGB"), float(dpi)) for image in convert_from_path(source, dpi=dpi)]
+        rendered = convert_from_path(
+            source,
+            dpi=dpi,
+            fmt="png",
+            output_folder=str(workdir),
+            paths_only=True,
+        )
+        try:
+            for rendered_page in rendered:
+                page_path = Path(str(rendered_page))
+                with Image.open(page_path) as image:
+                    converted = image.convert("RGB")
+                    try:
+                        yield converted, float(dpi)
+                    finally:
+                        converted.close()
+        finally:
+            for rendered_page in rendered:
+                Path(str(rendered_page)).unlink(missing_ok=True)
+        return
 
-    result: list[tuple[Image.Image, float]] = []
     with Image.open(source) as image:
         for frame in ImageSequence.Iterator(image):
             embedded = frame.info.get("dpi")
             page_dpi = float(embedded[0]) if embedded and embedded[0] else float(dpi)
-            result.append((frame.convert("RGB"), page_dpi))
-    return result
+            converted = frame.convert("RGB")
+            try:
+                yield converted, page_dpi
+            finally:
+                converted.close()
 
 
 def _block_box(block: dict[str, Any]) -> tuple[float, float, float, float] | None:
@@ -79,20 +116,24 @@ def build_searchable_pdf(
     font_path: Path | None = None,
 ) -> None:
     """Rasterize source and overlay invisible, positioned Unicode text."""
+    import pikepdf
     from fpdf import FPDF
 
-    images = _page_images(source, mime_type, dpi)
-    if len(images) != len(pages):
+    source_page_count = _source_page_count(source, mime_type)
+    if source_page_count != len(pages):
         raise PdfBuildError(
-            f"Source has {len(images)} page(s), Mistral returned {len(pages)} page(s)",
+            f"Source has {source_page_count} page(s), Mistral returned {len(pages)} page(s)",
         )
 
-    pdf = FPDF(unit="pt")
-    pdf.set_auto_page_break(False)
-    pdf.add_font("OCR", fname=str(find_font(font_path)))
+    font = find_font(font_path)
     temp_images: list[Path] = []
+    merged = pikepdf.Pdf.new()
     try:
-        for index, ((image, page_dpi), page) in enumerate(zip(images, pages, strict=True)):
+        page_images = _page_images(source, mime_type, dpi, output.parent)
+        for index, ((image, page_dpi), page) in enumerate(zip(page_images, pages, strict=True)):
+            pdf = FPDF(unit="pt")
+            pdf.set_auto_page_break(False)
+            pdf.add_font("OCR", fname=str(font))
             width_pt = image.width * 72 / page_dpi
             height_pt = image.height * 72 / page_dpi
             image_path = output.parent / f"mistral-page-{index}.png"
@@ -100,6 +141,8 @@ def build_searchable_pdf(
             temp_images.append(image_path)
             pdf.add_page(format=(width_pt, height_pt))
             pdf.image(image_path, x=0, y=0, w=width_pt, h=height_pt)
+            image_path.unlink()
+            temp_images.remove(image_path)
 
             dimensions = page.get("dimensions")
             source_width = _dimension(
@@ -137,9 +180,16 @@ def build_searchable_pdf(
                         pdf.set_stretching(stretching)
                         pdf.text(x=x, y=min(y, height_pt), text=line)
                     pdf.set_stretching(100)
-        pdf.output(output)
+            page_pdf_path = output.parent / f"mistral-page-{index}.pdf"
+            temp_images.append(page_pdf_path)
+            pdf.output(page_pdf_path)
+            with pikepdf.open(page_pdf_path) as page_pdf:
+                merged.pages.extend(page_pdf.pages)
+            page_pdf_path.unlink()
+            temp_images.remove(page_pdf_path)
+        merged.save(output)
     finally:
-        for page_image, _page_dpi in images:
-            page_image.close()
+        page_images.close()
+        merged.close()
         for temp_image in temp_images:
             temp_image.unlink(missing_ok=True)

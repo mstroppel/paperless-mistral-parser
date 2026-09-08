@@ -52,6 +52,56 @@ def test_born_digital_pdf_skips_remote(
         assert parser.get_archive_path() is None
 
 
+def test_born_digital_pdf_honors_requested_archive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    paperless_modules: SimpleNamespace,
+) -> None:
+    monkeypatch.setenv("MISTRAL_API_KEY", "secret")
+    path = tmp_path / "digital.pdf"
+    path.write_bytes(b"pdf")
+
+    with MistralOcrParser() as parser:
+        parser.parse(path, "application/pdf", produce_archive=True)
+        archive = parser.get_archive_path()
+        assert archive is not None
+        assert archive.read_bytes() == b"pdf"
+
+
+def test_scanned_pdf_uses_remote_when_archive_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    paperless_modules: SimpleNamespace,
+) -> None:
+    monkeypatch.setenv("MISTRAL_API_KEY", "secret")
+    paperless_modules.utils.pdf_born_digital_text = lambda *_args, **_kwargs: ("", False)
+    path = tmp_path / "scan.pdf"
+    path.write_bytes(b"pdf")
+    called = False
+
+    class FakeClient:
+        def __init__(self, _config: Config) -> None:
+            pass
+
+        def __enter__(self) -> FakeClient:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            pass
+
+        def process(self, _path: Path, _mime: str) -> list[dict[str, str]]:
+            nonlocal called
+            called = True
+            return [{"markdown": "recognized scan"}]
+
+    monkeypatch.setattr("paperless_mistral_parser.parser.MistralClient", FakeClient)
+    with MistralOcrParser() as parser:
+        parser.parse(path, "application/pdf", produce_archive=False)
+        assert parser.get_text() == "recognized scan"
+        assert parser.get_archive_path() is None
+    assert called
+
+
 def test_scan_calls_mistral_and_builds_archive(
     monkeypatch: pytest.MonkeyPatch,
     image_path: Path,

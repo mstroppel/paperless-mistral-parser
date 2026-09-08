@@ -69,7 +69,7 @@ services:
     environment:
       PAPERLESS_OCR_MODE: auto
       PAPERLESS_ARCHIVE_FILE_GENERATION: auto
-      PAPERLESS_REMOTE_OCR_BY_DEFAULT: "true"
+      PAPERLESS_REMOTE_OCR_MODE: always
       MISTRAL_API_KEY_FILE: /run/secrets/mistral_api_key
     secrets:
       - mistral_api_key
@@ -115,13 +115,14 @@ and completed for the scan.
 The example enables Mistral for every eligible document:
 
 ```env
-PAPERLESS_REMOTE_OCR_BY_DEFAULT=true
+PAPERLESS_REMOTE_OCR_MODE=always
 ```
 
-To opt in only selected documents, set it to `false` and create a Paperless
-workflow that enables remote OCR for matching documents. The parser declares
-`uses_remote_service = True`, so Paperless will not select it unless remote
-processing is allowed for that ingestion.
+To opt in only selected documents, set `PAPERLESS_REMOTE_OCR_MODE` to
+`workflow_only` and create a Paperless workflow that enables remote OCR for
+matching documents. The parser declares `uses_remote_service = True`, so
+Paperless will not select it unless remote processing is allowed for that
+ingestion.
 
 ## Configuration
 
@@ -171,8 +172,11 @@ environment as Paperless and restart every Paperless process:
 
 ```bash
 python -m pip install \
-  "git+https://github.com/mstroppel/paperless-mistral-parser.git@v0.1.0"
+  "git+https://github.com/mstroppel/paperless-mistral-parser.git@main"
 ```
+
+Replace `main` with a release tag or full commit hash for reproducible
+production installations.
 
 For an unreleased checkout:
 

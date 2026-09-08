@@ -47,7 +47,7 @@ def paperless_modules(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Simple
     paperless = ModuleType("paperless")
     parsers = ModuleType("paperless.parsers")
     utils = ModuleType("paperless.parsers.utils")
-    utils.extract_pdf_text = lambda *_args, **_kwargs: " native text "
+    utils.pdf_born_digital_text = lambda *_args, **_kwargs: (" native text ", True)
     utils.post_process_text = lambda value: value.strip()
     utils.get_page_count_for_pdf = lambda *_args, **_kwargs: 1
     utils.extract_pdf_metadata = lambda *_args, **_kwargs: []

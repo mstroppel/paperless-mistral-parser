@@ -96,10 +96,10 @@ class MistralOcrParser:
 
         try:
             config = Config.load()
-            if mime_type == "application/pdf" and not produce_archive:
-                from paperless.parsers.utils import extract_pdf_text, post_process_text
-
-                self._text = post_process_text(extract_pdf_text(document_path, log=logger)) or ""
+            if mime_type == "application/pdf" and self._use_native_pdf_text(
+                document_path,
+                produce_archive=produce_archive,
+            ):
                 logger.info("Mistral OCR skipped for born-digital PDF")
                 return
             self._validate_page_count(document_path, mime_type, config.max_pages)
@@ -121,6 +121,17 @@ class MistralOcrParser:
         except (ConfigurationError, OcrError, PdfBuildError, OSError, ValueError) as error:
             logger.exception("Mistral OCR parsing failed: %s", error)
             raise ParseError(f"Mistral OCR parsing failed: {error}") from error
+
+    def _use_native_pdf_text(self, path: Path, *, produce_archive: bool) -> bool:
+        from paperless.parsers.utils import pdf_born_digital_text, post_process_text
+
+        text, born_digital = pdf_born_digital_text(path, log=logger)
+        if born_digital:
+            self._text = post_process_text(text) or ""
+            if produce_archive:
+                self._archive_path = self._tempdir / "archive.pdf"
+                shutil.copyfile(path, self._archive_path)
+        return bool(born_digital)
 
     def _validate_page_count(self, path: Path, mime_type: str, limit: int) -> None:
         count = self.get_page_count(path, mime_type)

@@ -8,7 +8,7 @@ services:
     environment:
       PAPERLESS_OCR_MODE: auto
       PAPERLESS_ARCHIVE_FILE_GENERATION: auto
-      PAPERLESS_REMOTE_OCR_BY_DEFAULT: "true"
+      PAPERLESS_REMOTE_OCR_MODE: always
       MISTRAL_API_KEY_FILE: /run/secrets/mistral_api_key
     secrets:
       - mistral_api_key
