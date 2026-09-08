@@ -6,6 +6,7 @@
 .venv
 build
 dist
+secrets
 tests
 *.json
 *.pyc
